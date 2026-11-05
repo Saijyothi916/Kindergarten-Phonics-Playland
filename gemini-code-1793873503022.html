@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Phonics Playland - ICSE English Teacher Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Quicksand:wght@600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <style>
+    body {
+      font-family: 'Quicksand', sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+      background: linear-gradient(135deg, #e0f2fe 0%, #fef3c7 100%);
+    }
+    .font-fredoka { font-family: 'Fredoka One', cursive; }
+    .bounce-gentle { animation: bounce 2s infinite; }
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .pop-in { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes popIn {
+      0% { transform: scale(0.6); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    canvas {
+      touch-action: none;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col justify-between text-slate-800">
+
+  <!-- TOP APP BAR -->
+  <header class="bg-white/90 backdrop-blur-md border-b-4 border-amber-300 p-2.5 px-4 flex items-center justify-between z-20 shadow-sm">
+    <div class="flex items-center space-x-2">
+      <button id="home-btn" onclick="navTo('home')" class="bg-amber-400 hover:bg-amber-500 text-white font-fredoka px-3 py-1.5 rounded-2xl shadow-md flex items-center gap-1.5 border-b-4 border-amber-600 active:translate-y-1 text-sm">
+        <i class="fa-solid fa-house text-base"></i>
+        <span class="hidden sm:inline">Home</span>
+      </button>
+      <span class="bg-indigo-100 text-indigo-800 font-fredoka px-3 py-1 rounded-full text-xs sm:text-sm border border-indigo-200">
+        ICSE LKG / Kindergarten
+      </span>
+    </div>
+
+    <!-- STAR COUNTER & PARENT DASHBOARD BUTTON -->
+    <div class="flex items-center space-x-3">
+      <div class="bg-yellow-100 border-2 border-yellow-400 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-inner">
+        <i class="fa-solid fa-star text-yellow-500 text-lg"></i>
+        <span id="star-count" class="font-fredoka text-amber-700 text-base">0</span>
+      </div>
+      <button onclick="openParentGate()" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold p-2 rounded-2xl shadow-md border-b-4 border-indigo-700 active:translate-y-1 flex items-center gap-1 text-xs">
+        <i class="fa-solid fa-user-shield text-base"></i>
+        <span class="hidden md:inline">Parents</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN PLAY AREA -->
+  <main id="app-container" class="flex-1 overflow-y-auto p-3 flex flex-col items-center justify-center relative">
+    <!-- Dynamic Views render here -->
+  </main>
+
+  <!-- AUDIO INSTRUCTION REPEAT BAR WITH TEACHER BADGE -->
+  <footer id="audio-bar" class="bg-white/95 border-t-2 border-slate-200 p-2.5 flex items-center justify-center gap-3 z-10 shadow-lg">
+    <button id="repeat-audio-btn" onclick="repeatCurrentInstruction()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-fredoka px-5 py-2 rounded-2xl shadow-md border-b-4 border-emerald-700 active:translate-y-0.5 flex items-center gap-2 text-sm">
+      <i class="fa-solid fa-graduation-cap text-xl animate-bounce"></i>
+      <span>Listen to Teacher</span>
+    </button>
+    <div id="speaker-status" class="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 flex items-center gap-1.5">
+      <i class="fa-solid fa-volume-high text-emerald-500"></i>
+      <span id="speaker-text">Teacher Ready</span>
+    </div>
+  </footer>
+
+  <!-- PARENT GATE MODAL -->
+  <div id="parent-gate" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border-4 border-indigo-400 text-center pop-in">
+      <i class="fa-solid fa-lock text-indigo-500 text-4xl mb-2"></i>
+      <h3 class="font-fredoka text-2xl text-slate-800 mb-1">Grown-Ups Only</h3>
+      <p class="text-xs text-slate-600 mb-4">Solve this math question to access the ICSE Parent Dashboard:</p>
+      
+      <div id="gate-question" class="text-2xl font-fredoka text-indigo-600 mb-4 bg-indigo-50 py-2 rounded-xl border border-indigo-200"></div>
+      
+      <div class="grid grid-cols-3 gap-2 mb-4" id="gate-options"></div>
+      
+      <button onclick="closeParentGate()" class="text-slate-400 text-xs font-bold underline hover:text-slate-600">
+        Cancel & Return to Game
+      </button>
+    </div>
+  </div>
+
+  <!-- SCRIPT IMPLEMENTATION -->
+  <script>
+    /* ====================================================================
+       ICSE CURRICULUM DATA WITH "A says aa, B says ba, C says ka"
+       ==================================================================== */
+    const icseData = {
+      phonicLetters: [
+        { big: 'A', small: 'a', soundSpoken: 'A says aa', word: 'Apple', icon: '🍎', lineGuide: 'Big A starts at top red line down to bottom blue line. Small a stays inside the two blue lines.' },
+        { big: 'B', small: 'b', soundSpoken: 'B says ba', word: 'Ball', icon: '⚽', lineGuide: 'Big B touches top red line to bottom blue line. Small b standing line starts from top red line down.' },
+        { big: 'C', small: 'c', soundSpoken: 'C says ka', word: 'Cat', icon: '🐱', lineGuide: 'Big C touches top red line. Small c stays strictly inside middle two blue lines.' },
+        { big: 'D', small: 'd', soundSpoken: 'D says da', word: 'Dog', icon: '🐶', lineGuide: 'Big D touches top red line down to blue line. Small d curve sits inside blue lines with stem up to red line.' },
+        { big: 'E', small: 'e', soundSpoken: 'E says ea', word: 'Elephant', icon: '🐘', lineGuide: 'Big E starts at top red line. Small e stays inside middle blue lines.' },
+        { big: 'F', small: 'f', soundSpoken: 'F says fa', word: 'Fish', icon: '🐟', lineGuide: 'Big F starts at top red line. Small f curves from top red line down to bottom blue line.' },
+        { big: 'G', small: 'g', soundSpoken: 'G says ga', word: 'Grapes', icon: '🍇', lineGuide: 'Small g tail goes down to touch the bottom red line.' },
+        { big: 'H', small: 'h', soundSpoken: 'H says ha', word: 'Hat', icon: '🎩', lineGuide: 'Big H touches top red line down. Small h standing line starts at top red line.' },
+        { big: 'I', small: 'i', soundSpoken: 'I says ee', word: 'Inkpot', icon: '✒️', lineGuide: 'Small i stays inside middle blue lines with a dot above in the red line space.' },
+        { big: 'J', small: 'j', soundSpoken: 'J says ja', word: 'Jug', icon: '🏺', lineGuide: 'Small j tail goes all the way down to touch bottom red line.' },
+        { big: 'K', small: 'k', soundSpoken: 'K says ka', word: 'Kite', icon: '🪁', lineGuide: 'Big K and small k both touch top red line.' },
+        { big: 'L', small: 'l', soundSpoken: 'L says la', word: 'Lion', icon: '🦁', lineGuide: 'Small l is a straight standing line from top red line to bottom blue line.' },
+        { big: 'M', small: 'm', soundSpoken: 'M says ma', word: 'Mango', icon: '🥭', lineGuide: 'Small m stays between the two blue lines.' },
+        { big: 'N', small: 'n', soundSpoken: 'N says na', word: 'Nest', icon: '🪹', lineGuide: 'Small n stays strictly inside middle blue lines.' },
+        { big: 'O', small: 'o', soundSpoken: 'O says oa', word: 'Owl', icon: '🦉', lineGuide: 'Small o is a circle sitting inside middle blue lines.' },
+        { big: 'P', small: 'p', soundSpoken: 'P says pa', word: 'Pen', icon: '🖊️', lineGuide: 'Small p standing line goes down to touch bottom red line.' },
+        { big: 'Q', small: 'q', soundSpoken: 'Q says qua', word: 'Queen', icon: '👑', lineGuide: 'Small q tail goes down to touch bottom red line.' },
+        { big: 'R', small: 'r', soundSpoken: 'R says ra', word: 'Rose', icon: '🌹', lineGuide: 'Small r stays inside middle blue lines.' },
+        { big: 'S', small: 's', soundSpoken: 'S says sa', word: 'Sun', icon: '☀️', lineGuide: 'Small s fits neatly inside middle blue lines.' },
+        { big: 'T', small: 't', soundSpoken: 'T says ta', word: 'Tiger', icon: '🐯', lineGuide: 'Small t starts near top red line down to bottom blue line.' },
+        { big: 'U', small: 'u', soundSpoken: 'U says ua', word: 'Umbrella', icon: '☂️', lineGuide: 'Small u stays inside middle blue lines.' },
+        { big: 'V', small: 'v', soundSpoken: 'V says va', word: 'Van', icon: '🚐', lineGuide: 'Small v fits inside middle blue lines.' },
+        { big: 'W', small: 'w', soundSpoken: 'W says wa', word: 'Watch', icon: '⌚', lineGuide: 'Small w fits inside middle blue lines.' },
+        { big: 'X', small: 'x', soundSpoken: 'X says xa', word: 'Xylophone', icon: '🎼', lineGuide: 'Small x stays inside middle blue lines.' },
+        { big: 'Y', small: 'y', soundSpoken: 'Y says ya', word: 'Yak', icon: '🐂', lineGuide: 'Small y tail touches bottom red line.' },
+        { big: 'Z', small: 'z', soundSpoken: 'Z says za', word: 'Zebra', icon: '🦓', lineGuide: 'Small z fits inside middle blue lines.' }
+      ],
+      cvcWords: [
+        { word: 'cat', parts: ['c', 'a', 't'], soundSpoken: 'ka... aa... ta... CAT!', icon: '🐱' },
+        { word: 'bat', parts: ['b', 'a', 't'], soundSpoken: 'ba... aa... ta... BAT!', icon: '🦇' },
+        { word: 'mat', parts: ['m', 'a', 't'], soundSpoken: 'ma... aa... ta... MAT!', icon: '🧹' },
+        { word: 'dog', parts: ['d', 'o', 'g'], soundSpoken: 'da... oa... ga... DOG!', icon: '🐶' },
+        { word: 'pen', parts: ['p', 'e', 'n'], soundSpoken: 'pa... ea... na... PEN!', icon: '🖊️' },
+        { word: 'sun', parts: ['s', 'u', 'n'], soundSpoken: 'sa... ua... na... SUN!', icon: '☀️' }
+      ]
+    };
+
+    let appState = {
+      stars: 0,
+      currentView: 'home',
+      lastAudioText: '',
+      gateAnswer: null,
+      writingMode: 'big' // 'big' or 'small'
+    };
+
+    /* ====================================================================
+       BOLD ENGLISH VOICE TEACHER ENGINE
+       Prioritizes En-IN (Indian English / ICSE School) or British English
+       Voices with loud volume, authoritative clear pitch, & articulate pacing.
+       ==================================================================== */
+    let teacherVoice = null;
+
+    function initTeacherVoice() {
+      if (!('speechSynthesis' in window)) return;
+      const voices = window.speechSynthesis.getVoices();
+      
+      // Preference order: En-IN (Indian English Teacher), En-GB (British English), En-US
+      teacherVoice = voices.find(v => v.lang.includes('en-IN') || v.name.includes('India')) 
+                  || voices.find(v => v.lang.includes('en-GB') || v.name.includes('UK') || v.name.includes('British'))
+                  || voices.find(v => v.lang.startsWith('en'))
+                  || voices[0];
+    }
+
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.onvoiceschanged = initTeacherVoice;
+      initTeacherVoice();
+    }
+
+    function speak(text, pitch = 1.0, rate = 0.8) {
+      appState.lastAudioText = text;
+      if (!('speechSynthesis' in window)) return;
+
+      window.speechSynthesis.cancel(); // Stop ongoing speech
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (teacherVoice) utterance.voice = teacherVoice;
+      
+      utterance.volume = 1.0; // Maximum Loud & Bold Volume
+      utterance.pitch = pitch; // Authoritative clear teacher pitch
+      utterance.rate = rate;   // Deliberate, clear classroom pacing
+      
+      const textElem = document.getElementById('speaker-text');
+      if (textElem) textElem.innerText = 'Teacher Speaking...';
+
+      utterance.onend = () => {
+        if (textElem) textElem.innerText = 'Teacher Ready';
+      };
+
+      utterance.onerror = () => {
+        if (textElem) textElem.innerText = 'Teacher Ready';
+      };
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function repeatCurrentInstruction() {
+      if (appState.lastAudioText) {
+        speak(appState.lastAudioText);
+      } else {
+        speak("Hello children! Welcome to Phonics Playland! Let us learn together!");
+      }
+    }
+
+    /* ====================================================================
+       ROUTER & NAVIGATION
+       ==================================================================== */
+    function navTo(viewName) {
+      appState.currentView = viewName;
+      const container = document.getElementById('app-container');
+      container.innerHTML = '';
+
+      switch (viewName) {
+        case 'home':
+          renderHomeScreen(container);
+          speak("Welcome children! I am your English Teacher. Tap any activity to start learning!");
+          break;
+        case 'phonics':
+          renderPhonicsScreen(container);
+          break;
+        case 'four-lines-writing':
+          renderFourLineWritingScreen(container);
+          break;
+        case 'numbers-100':
+          renderNumbers100Screen(container);
+          break;
+        case 'build-word':
+          renderBuildWordScreen(container);
+          break;
+        case 'rewards':
+          renderRewardsScreen(container);
+          break;
+        case 'parent-dashboard':
+          renderParentDashboard(container);
+          break;
+        default:
+          renderHomeScreen(container);
+      }
+    }
+
+    /* ====================================================================
+       1. HOME SCREEN
+       ==================================================================== */
+    function renderHomeScreen(container) {
+      container.innerHTML = `
+        <div class="w-full max-w-4xl text-center pop-in">
+          <h1 class="font-fredoka text-3xl sm:text-4xl text-indigo-700 mb-1 drop-shadow-sm">
+            Phonics & Four-Line Writing
+          </h1>
+          <p class="text-xs sm:text-sm text-slate-600 mb-5 font-semibold">ICSE School Standards • English Teacher Classroom Edition</p>
+
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 px-2 max-w-2xl mx-auto">
+            
+            <button onclick="navTo('phonics')" class="bg-gradient-to-b from-rose-400 to-rose-500 text-white p-4 rounded-3xl shadow-lg border-b-4 border-rose-700 active:translate-y-1 flex flex-col items-center gap-2 hover:scale-105 transition-all">
+              <div class="text-4xl bg-white/20 p-2.5 rounded-2xl">🔤</div>
+              <span class="font-fredoka text-base"><b>A says aa, B says ba</b></span>
+            </button>
+
+            <button onclick="navTo('four-lines-writing')" class="bg-gradient-to-b from-indigo-500 to-indigo-600 text-white p-4 rounded-3xl shadow-lg border-b-4 border-indigo-800 active:translate-y-1 flex flex-col items-center gap-2 hover:scale-105 transition-all col-span-1">
+              <div class="text-4xl bg-white/20 p-2.5 rounded-2xl">✍️</div>
+              <span class="font-fredoka text-base"><b>Four-Line Letter Writing</b></span>
+            </button>
+
+            <button onclick="navTo('numbers-100')" class="bg-gradient-to-b from-emerald-400 to-emerald-500 text-white p-4 rounded-3xl shadow-lg border-b-4 border-emerald-700 active:translate-y-1 flex flex-col items-center gap-2 hover:scale-105 transition-all">
+              <div class="text-4xl bg-white/20 p-2.5 rounded-2xl">🔢</div>
+              <span class="font-fredoka text-base"><b>Numbers 1 to 100</b></span>
+            </button>
+
+            <button onclick="navTo('build-word')" class="bg-gradient-to-b from-sky-400 to-sky-500 text-white p-4 rounded-3xl shadow-lg border-b-4 border-sky-700 active:translate-y-1 flex flex-col items-center gap-2 hover:scale-105 transition-all">
+              <div class="text-4xl bg-white/20 p-2.5 rounded-2xl">🧩</div>
+              <span class="font-fredoka text-base"><b>Word Blending</b></span>
+            </button>
+
+            <button onclick="navTo('rewards')" class="bg-gradient-to-b from-amber-400 to-amber-500 text-white p-4 rounded-3xl shadow-lg border-b-4 border-amber-700 active:translate-y-1 flex flex-col items-center gap-2 hover:scale-105 transition-all col-span-2 sm:col-span-1">
+              <div class="text-4xl bg-white/20 p-2.5 rounded-2xl">⭐</div>
+              <span class="font-fredoka text-base"><b>My Rewards</b></span>
+            </button>
+
+          </div>
+        </div>
+      `;
+    }
+
+    /* ====================================================================
+       2. PHONICS SCREEN (BOLD ENGLISH TEACHER)
+       ==================================================================== */
+    let phonicIdx = 0;
+    function renderPhonicsScreen(container) {
+      const item = icseData.phonicLetters[phonicIdx];
+
+      container.innerHTML = `
+        <div class="bg-white p-5 rounded-3xl shadow-xl border-4 border-rose-300 text-center max-w-md w-full pop-in">
+          <div class="flex justify-between items-center mb-2">
+            <span class="font-fredoka text-slate-400 text-sm">Letter ${phonicIdx + 1} of ${icseData.phonicLetters.length}</span>
+            <button onclick="speakPhonicsSound('${item.big}', '${item.small}', '${item.soundSpoken}', '${item.word}')" class="bg-rose-100 text-rose-600 p-2.5 rounded-full hover:bg-rose-200">
+              <i class="fa-solid fa-volume-high text-xl"></i>
+            </button>
+          </div>
+
+          <!-- BIG AND SMALL LETTER DISPLAY -->
+          <div class="flex items-center justify-center gap-4 my-2 cursor-pointer" onclick="speakPhonicsSound('${item.big}', '${item.small}', '${item.soundSpoken}', '${item.word}')">
+            <span class="text-7xl font-fredoka text-rose-500 hover:scale-110 transition-transform">${item.big}</span>
+            <span class="text-6xl font-fredoka text-indigo-500 hover:scale-110 transition-transform">${item.small}</span>
+          </div>
+
+          <!-- TEACHER PHONICS SPEECH DISPLAY -->
+          <div class="bg-rose-50 border-2 border-rose-200 rounded-2xl p-3 mb-4">
+            <div class="font-fredoka text-2xl text-rose-600"><b>${item.soundSpoken}</b></div>
+            <div class="text-xs text-slate-600 font-bold mt-1"><b>${item.big} for ${item.word}!</b></div>
+          </div>
+
+          <button onclick="triggerPhonicsReward('${item.word}')" class="w-full bg-slate-50 border-2 border-slate-200 rounded-2xl p-3 flex flex-col items-center gap-1 hover:bg-rose-50 transition-colors mb-4">
+            <div class="text-5xl bounce-gentle">${item.icon}</div>
+            <div class="font-fredoka text-2xl text-slate-800"><b>${item.word}</b></div>
+            <span class="text-xs text-rose-600 font-bold">Tap picture to repeat after teacher!</span>
+          </button>
+
+          <div class="flex gap-3">
+            <button onclick="prevPhonics()" class="flex-1 bg-slate-200 text-slate-700 font-fredoka py-2.5 rounded-2xl active:translate-y-1"><b>Previous</b></button>
+            <button onclick="nextPhonics()" class="flex-1 bg-rose-500 text-white font-fredoka py-2.5 rounded-2xl shadow-md border-b-4 border-rose-700 active:translate-y-1"><b>Next Letter</b></button>
+          </div>
+        </div>
+      `;
+
+      speakPhonicsSound(item.big, item.small, item.soundSpoken, item.word);
+    }
+
+    function speakPhonicsSound(big, small, soundSpoken, word) {
+      speak(`Capital ${big}, small ${small}. ${soundSpoken}. ${big} for ${word}! Repeat after me: ${soundSpoken}!`);
+    }
+
+    function triggerPhonicsReward(word) {
+      addStar();
+      speak(`Very good children! Excellent pronunciation! ${word}!`);
+      confetti({ particleCount: 30, spread: 60, origin: { y: 0.7 } });
+    }
+
+    function prevPhonics() {
+      if (phonicIdx > 0) phonicIdx--;
+      renderPhonicsScreen(document.getElementById('app-container'));
+    }
+
+    function nextPhonics() {
+      phonicIdx = (phonicIdx + 1) % icseData.phonicLetters.length;
+      renderPhonicsScreen(document.getElementById('app-container'));
+    }
+
+    /* ====================================================================
+       3. FOUR-LINE WRITING PRACTICE (ENGLISH TEACHER GUIDANCE)
+       ==================================================================== */
+    let writeIdx = 0;
+    function renderFourLineWritingScreen(container) {
+      const item = icseData.phonicLetters[writeIdx];
+
+      container.innerHTML = `
+        <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xl border-4 border-indigo-300 text-center max-w-lg w-full pop-in">
+          <div class="flex justify-between items-center mb-2">
+            <h2 class="font-fredoka text-xl text-indigo-700"><b>Four-Line Letter Writing</b></h2>
+            <div class="flex gap-1 bg-indigo-50 p-1 rounded-xl border border-indigo-200">
+              <button onclick="setWritingMode('big')" class="px-2.5 py-1 rounded-lg text-xs font-fredoka ${appState.writingMode === 'big' ? 'bg-indigo-600 text-white' : 'text-indigo-600'}"><b>Big (${item.big})</b></button>
+              <button onclick="setWritingMode('small')" class="px-2.5 py-1 rounded-lg text-xs font-fredoka ${appState.writingMode === 'small' ? 'bg-indigo-600 text-white' : 'text-indigo-600'}"><b>Small (${item.small})</b></button>
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-700 mb-3 font-bold bg-amber-50 p-2 rounded-xl border border-amber-200"><b>Teacher Rule:</b> ${item.lineGuide}</p>
+
+          <!-- FOUR-LINE NOTEBOOK CANVAS CONTAINER -->
+          <div class="relative w-full h-48 bg-white border-2 border-slate-300 rounded-2xl overflow-hidden mb-3 shadow-inner">
+            <!-- FOUR LINES BACKGROUND -->
+            <div class="absolute inset-0 flex flex-col justify-between py-6 pointer-events-none opacity-80">
+              <div class="w-full border-b-2 border-red-500"></div> <!-- Top Red Line -->
+              <div class="w-full border-b-2 border-blue-500"></div> <!-- Middle Blue Line 1 -->
+              <div class="w-full border-b-2 border-blue-500"></div> <!-- Middle Blue Line 2 -->
+              <div class="w-full border-b-2 border-red-500"></div> <!-- Bottom Red Line -->
+            </div>
+
+            <!-- TRACING GUIDE TEXT -->
+            <div id="tracing-guide" class="absolute inset-0 flex items-center justify-center font-fredoka text-slate-200 text-9xl pointer-events-none select-none">
+              ${appState.writingMode === 'big' ? item.big : item.small}
+            </div>
+
+            <!-- DRAWING CANVAS -->
+            <canvas id="writing-canvas" class="absolute inset-0 w-full h-full cursor-crosshair"></canvas>
+          </div>
+
+          <div class="flex gap-2 mb-3">
+            <button onclick="clearCanvas()" class="flex-1 bg-slate-200 text-slate-700 font-fredoka py-2 rounded-xl text-xs active:translate-y-0.5">
+              <i class="fa-solid fa-eraser"></i> <b>Erase</b>
+            </button>
+            <button onclick="speakLineGuide('${item.lineGuide}')" class="flex-1 bg-indigo-100 text-indigo-700 font-fredoka py-2 rounded-xl text-xs active:translate-y-0.5">
+              <i class="fa-solid fa-graduation-cap"></i> <b>Teacher Rule</b>
+            </button>
+            <button onclick="finishWriting('${appState.writingMode === 'big' ? item.big : item.small}')" class="flex-1 bg-emerald-500 text-white font-fredoka py-2 rounded-xl text-xs shadow-md border-b-2 border-emerald-700 active:translate-y-0.5">
+              <i class="fa-solid fa-check"></i> <b>Submit</b>
+            </button>
+          </div>
+
+          <div class="flex gap-3">
+            <button onclick="prevWrite()" class="flex-1 bg-slate-200 text-slate-700 font-fredoka py-2 rounded-2xl text-sm"><b>Previous</b></button>
+            <button onclick="nextWrite()" class="flex-1 bg-indigo-600 text-white font-fredoka py-2 rounded-2xl shadow-md border-b-4 border-indigo-800 text-sm"><b>Next Letter</b></button>
+          </div>
+        </div>
+      `;
+
+      initCanvas();
+      speakLineGuide(item.lineGuide);
+    }
+
+    function setWritingMode(mode) {
+      appState.writingMode = mode;
+      renderFourLineWritingScreen(document.getElementById('app-container'));
+    }
+
+    function speakLineGuide(guide) {
+      speak(`Attention children, listen carefully to the writing rule: ${guide}`);
+    }
+
+    function prevWrite() {
+      if (writeIdx > 0) writeIdx--;
+      renderFourLineWritingScreen(document.getElementById('app-container'));
+    }
+
+    function nextWrite() {
+      writeIdx = (writeIdx + 1) % icseData.phonicLetters.length;
+      renderFourLineWritingScreen(document.getElementById('app-container'));
+    }
+
+    /* CANVAS DRAWING UTILS */
+    let canvas, ctx, isDrawing = false;
+
+    function initCanvas() {
+      canvas = document.getElementById('writing-canvas');
+      if (!canvas) return;
+      ctx = canvas.getContext('2d');
+      
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#4f46e5';
+
+      const startDraw = (e) => {
+        isDrawing = true;
+        ctx.beginPath();
+        const pos = getPos(e);
+        ctx.moveTo(pos.x, pos.y);
+      };
+
+      const draw = (e) => {
+        if (!isDrawing) return;
+        const pos = getPos(e);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+      };
+
+      const stopDraw = () => { isDrawing = false; };
+
+      canvas.addEventListener('mousedown', startDraw);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stopDraw);
+
+      canvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDraw(e.touches[0]); });
+      canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); });
+      canvas.addEventListener('touchend', stopDraw);
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      };
+    }
+
+    function clearCanvas() {
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    function finishWriting(letter) {
+      addStar();
+      speak(`Star awarded! Very good handwriting for letter ${letter}! Excellent work!`);
+      confetti({ particleCount: 40, spread: 60, origin: { y: 0.6 } });
+    }
+
+    /* ====================================================================
+       4. NUMBERS 1 TO 100 LEARNING & TRACING
+       ==================================================================== */
+    let currentNumber = 1;
+    function renderNumbers100Screen(container) {
+      container.innerHTML = `
+        <div class="bg-white p-4 sm:p-5 rounded-3xl shadow-xl border-4 border-emerald-300 text-center max-w-xl w-full pop-in">
+          <div class="flex justify-between items-center mb-2">
+            <h2 class="font-fredoka text-2xl text-emerald-600"><b>Numbers 1 to 100</b></h2>
+            <div class="bg-emerald-100 text-emerald-800 font-fredoka px-3 py-1 rounded-full text-sm">
+              <b>Number: ${currentNumber}</b>
+            </div>
+          </div>
+
+          <!-- LARGE NUMBER DISPLAY & SPEECH -->
+          <div class="flex items-center justify-center gap-4 bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-3 mb-3">
+            <span class="text-7xl font-fredoka text-emerald-600 cursor-pointer" onclick="speakNumber(${currentNumber})"><b>${currentNumber}</b></span>
+            <button onclick="speakNumber(${currentNumber})" class="bg-emerald-500 text-white p-3 rounded-2xl shadow-md border-b-2 border-emerald-700 active:translate-y-0.5">
+              <i class="fa-solid fa-volume-high text-xl"></i>
+            </button>
+          </div>
+
+          <!-- GRID OF NUMBERS 1 TO 100 -->
+          <div class="text-xs font-bold text-slate-600 mb-1 text-left"><b>Tap any number for teacher counting:</b></div>
+          <div class="h-44 overflow-y-auto border-2 border-slate-200 rounded-2xl p-2 grid grid-cols-10 gap-1.5 bg-slate-50 mb-3">
+            ${Array.from({ length: 100 }, (_, i) => i + 1).map(n => `
+              <button onclick="selectNumber(${n})" class="h-9 font-fredoka rounded-xl text-sm transition-all flex items-center justify-center ${n === currentNumber ? 'bg-emerald-500 text-white shadow-md scale-105' : 'bg-white text-slate-700 border border-slate-200 hover:bg-emerald-100'}">
+                <b>${n}</b>
+              </button>
+            `).join('')}
+          </div>
+
+          <div class="flex gap-2">
+            <button onclick="changeNumber(-1)" class="flex-1 bg-slate-200 text-slate-700 font-fredoka py-2 rounded-2xl text-sm active:translate-y-0.5"><b>Previous Number</b></button>
+            <button onclick="changeNumber(1)" class="flex-1 bg-emerald-500 text-white font-fredoka py-2 rounded-2xl shadow-md border-b-4 border-emerald-700 text-sm active:translate-y-0.5"><b>Next Number</b></button>
+          </div>
+        </div>
+      `;
+
+      speakNumber(currentNumber);
+    }
+
+    function selectNumber(num) {
+      currentNumber = num;
+      renderNumbers100Screen(document.getElementById('app-container'));
+    }
+
+    function changeNumber(delta) {
+      currentNumber = Math.max(1, Math.min(100, currentNumber + delta));
+      renderNumbers100Screen(document.getElementById('app-container'));
+    }
+
+    function speakNumber(num) {
+      speak(`This is number ${num}! Repeat after me children: Number ${num}!`);
+    }
+
+    /* ====================================================================
+       5. BUILD A WORD (BLENDING WITH TEACHER SPEECH)
+       ==================================================================== */
+    let cvcIdx = 0;
+    function renderBuildWordScreen(container) {
+      const item = icseData.cvcWords[cvcIdx];
+
+      container.innerHTML = `
+        <div class="bg-white p-5 rounded-3xl shadow-xl border-4 border-sky-300 text-center max-w-md w-full pop-in">
+          <h2 class="font-fredoka text-2xl text-sky-600 mb-1"><b>Word Blending</b></h2>
+          <p class="text-xs text-slate-600 mb-3 font-bold">Tap each sound, then blend them together!</p>
+
+          <div class="flex justify-center gap-3 mb-4">
+            ${item.parts.map(p => `
+              <button onclick="speak('Sound ${p}')" class="w-16 h-20 bg-sky-100 border-b-4 border-sky-400 rounded-2xl font-fredoka text-4xl text-sky-700 flex items-center justify-center">
+                <b>${p.toUpperCase()}</b>
+              </button>
+            `).join('')}
+          </div>
+
+          <button onclick="blendWord('${item.soundSpoken}')" class="w-full bg-gradient-to-r from-sky-400 to-indigo-500 text-white font-fredoka py-3 rounded-2xl text-xl shadow-md border-b-4 border-indigo-700 active:translate-y-1 mb-4 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-play"></i> <b>Blend Sounds!</b>
+          </button>
+
+          <div class="bg-slate-50 border-2 border-slate-200 rounded-2xl p-3 flex flex-col items-center">
+            <div class="text-6xl mb-1">${item.icon}</div>
+            <div class="font-fredoka text-3xl text-slate-800 tracking-widest"><b>${item.word.toUpperCase()}</b></div>
+          </div>
+
+          <div class="mt-4">
+            <button onclick="nextCvc()" class="w-full bg-emerald-500 text-white font-fredoka py-2.5 rounded-2xl shadow-md border-b-4 border-emerald-700 text-sm"><b>Next Word</b></button>
+          </div>
+        </div>
+      `;
+
+      speak(`Let us blend sounds to make the word ${item.word}.`);
+    }
+
+    function blendWord(soundSpoken) {
+      speak(`Listen carefully children: ${soundSpoken}`);
+      addStar();
+      confetti({ particleCount: 40, spread: 70, origin: { y: 0.6 } });
+    }
+
+    function nextCvc() {
+      cvcIdx = (cvcIdx + 1) % icseData.cvcWords.length;
+      renderBuildWordScreen(document.getElementById('app-container'));
+    }
+
+    /* ====================================================================
+       6. REWARDS & PARENT DASHBOARD
+       ==================================================================== */
+    function renderRewardsScreen(container) {
+      container.innerHTML = `
+        <div class="bg-white p-6 rounded-3xl shadow-xl border-4 border-yellow-300 text-center max-w-md w-full pop-in">
+          <h2 class="font-fredoka text-3xl text-amber-600 mb-2"><b>My Rewards</b></h2>
+          <p class="text-xs text-slate-600 font-bold mb-6">Earn stars for good handwriting and correct phonics!</p>
+
+          <div class="grid grid-cols-3 gap-3 mb-6">
+            <div class="bg-yellow-50 p-3 rounded-2xl border-2 border-yellow-200 flex flex-col items-center">
+              <span class="text-4xl">🌟</span>
+              <span class="font-fredoka text-xs text-amber-700 mt-1"><b>Writing Star</b></span>
+            </div>
+            <div class="bg-yellow-50 p-3 rounded-2xl border-2 border-yellow-200 flex flex-col items-center">
+              <span class="text-4xl">🐱</span>
+              <span class="font-fredoka text-xs text-amber-700 mt-1"><b>Phonics Champ</b></span>
+            </div>
+            <div class="bg-yellow-50 p-3 rounded-2xl border-2 border-yellow-200 flex flex-col items-center">
+              <span class="text-4xl">🔢</span>
+              <span class="font-fredoka text-xs text-amber-700 mt-1"><b>Math Genius</b></span>
+            </div>
+          </div>
+
+          <button onclick="navTo('home')" class="w-full bg-amber-400 text-white font-fredoka py-3 rounded-2xl border-b-4 border-amber-600 active:translate-y-1">
+            <b>Back to Class</b>
+          </button>
+        </div>
+      `;
+
+      speak("Very good effort! Here are all your classroom stars and badges!");
+    }
+
+    function openParentGate() {
+      const num1 = Math.floor(Math.random() * 5) + 2;
+      const num2 = Math.floor(Math.random() * 4) + 1;
+      appState.gateAnswer = num1 + num2;
+
+      document.getElementById('gate-question').innerText = `${num1} + ${num2} = ?`;
+
+      const options = [appState.gateAnswer, appState.gateAnswer + 1, appState.gateAnswer - 1].sort(() => Math.random() - 0.5);
+      const optContainer = document.getElementById('gate-options');
+      optContainer.innerHTML = options.map(opt => `
+        <button onclick="verifyParentGate(${opt})" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 font-fredoka py-2.5 rounded-xl border-b-2 border-indigo-300 text-xl">
+          <b>${opt}</b>
+        </button>
+      `).join('');
+
+      document.getElementById('parent-gate').classList.remove('hidden');
+    }
+
+    function closeParentGate() {
+      document.getElementById('parent-gate').classList.add('hidden');
+    }
+
+    function verifyParentGate(selected) {
+      if (selected === appState.gateAnswer) {
+        closeParentGate();
+        navTo('parent-dashboard');
+      } else {
+        alert("Incorrect answer. Parent access restricted.");
+        closeParentGate();
+      }
+    }
+
+    function renderParentDashboard(container) {
+      container.innerHTML = `
+        <div class="bg-white p-6 rounded-3xl shadow-xl border-4 border-indigo-300 max-w-md w-full pop-in">
+          <h2 class="font-fredoka text-2xl text-indigo-700 mb-2"><b>Parent Dashboard</b></h2>
+          <p class="text-xs text-slate-600 mb-4 font-bold">Track four-line writing & ICSE phonics mastery:</p>
+
+          <div class="space-y-3 mb-6 text-sm font-bold">
+            <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex justify-between">
+              <span>Four-Line Writing Practice:</span>
+              <span class="text-indigo-700">Completed</span>
+            </div>
+            <div class="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 flex justify-between">
+              <span>Number Recognition (1-100):</span>
+              <span class="text-emerald-700">Active</span>
+            </div>
+            <div class="bg-amber-50 p-3 rounded-2xl border border-amber-100 flex justify-between">
+              <span>Phonics Sounds ("A says aa, B says ba"):</span>
+              <span class="text-amber-700">Mastered</span>
+            </div>
+          </div>
+
+          <button onclick="navTo('home')" class="w-full bg-indigo-600 text-white font-fredoka py-3 rounded-2xl border-b-4 border-indigo-800 active:translate-y-1">
+            <b>Return to Learning</b>
+          </button>
+        </div>
+      `;
+    }
+
+    function addStar() {
+      appState.stars++;
+      document.getElementById('star-count').innerText = appState.stars;
+    }
+
+    window.onload = () => {
+      navTo('home');
+    };
+  </script>
+</body>
+</html>
